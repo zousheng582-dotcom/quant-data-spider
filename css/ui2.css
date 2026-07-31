@@ -1,0 +1,112 @@
+/* ============================================================
+   ui2.css —— 第二版交互增强样式
+   主题变量驱动：styles.css 已用 --accent/--panel/--border 等变量，
+   深色模式只需在 [data-theme="dark"] 下重定义这些变量即可全局换肤。
+   本文件补齐：登录门禁、主题面板、预警抽屉、图标按钮、标签栏、预警项、移动端适配。
+   ============================================================ */
+
+/* 新增基础变量（字体基准，供主题面板调节） */
+:root{
+  --font-base:13px;
+}
+
+/* 深色主题：覆盖 styles.css 中的同名变量，组件随之换肤 */
+[data-theme="dark"]{
+  --bg:#0e131b;
+  --panel:#161d29;
+  --panel-2:#1d2636;
+  --border:#2a3548;
+  --border-strong:#36425a;
+  --text:#e6edf5;
+  --text-2:#aab6c8;
+  --text-3:#7c8aa0;
+  --muted:#7c8aa0;
+  --accent:#4d8bff;
+  --accent-soft:#1b2a45;
+  --up:#ff5b5b;
+  --up-soft:#3a1d1d;
+  --down:#28c281;
+  --down-soft:#14301f;
+  --warn:#f5a623;
+  --danger:#ff5b5b;
+  --shadow:0 1px 3px rgba(0,0,0,.4);
+}
+
+/* 字体基准生效（覆盖 styles.css 写死的 13px） */
+body{ font-size:var(--font-base); }
+
+/* 深色下个别硬编码白色面板修正 */
+[data-theme="dark"] .search-results,
+[data-theme="dark"] .modal,
+[data-theme="dark"] .toast{ background:var(--panel); }
+[data-theme="dark"] input.inp,
+[data-theme="dark"] select.inp,
+[data-theme="dark"] textarea.inp{ background:var(--panel-2); }
+
+/* ---------- 登录门禁 ---------- */
+.login-overlay{ position:fixed; inset:0; display:flex; align-items:center; justify-content:center;
+  background:rgba(10,16,26,.55); backdrop-filter:blur(3px); z-index:100; }
+.login-card{ width:340px; max-width:92vw; background:var(--panel); border:1px solid var(--border);
+  border-radius:14px; box-shadow:0 20px 60px rgba(0,0,0,.35); padding:26px 24px; }
+.login-brand{ display:flex; align-items:center; gap:8px; font-weight:700; font-size:17px; margin-bottom:4px; }
+.login-brand .logo{ width:26px; height:26px; border-radius:6px;
+  background:linear-gradient(135deg,#2f6df0,#1b3fae); color:#fff; display:flex; align-items:center;
+  justify-content:center; font-weight:700; font-size:15px; }
+.login-sub{ font-size:12px; color:var(--text-3); margin-bottom:18px; }
+.login-title{ font-weight:700; font-size:15px; margin-bottom:14px; }
+.login-err{ color:var(--danger); font-size:12px; min-height:16px; margin-top:8px; }
+.btn.block{ width:100%; display:block; margin-top:8px; }
+
+/* ---------- 顶栏图标按钮 ---------- */
+.icon-btn{ width:34px; height:34px; border:1px solid var(--border); background:var(--panel-2);
+  border-radius:8px; cursor:pointer; font-size:16px; display:flex; align-items:center; justify-content:center;
+  color:var(--text-2); position:relative; transition:.15s; }
+.icon-btn:hover{ background:var(--accent-soft); color:var(--accent); border-color:var(--accent); }
+.badge-dot{ position:absolute; top:-6px; right:-6px; background:var(--danger); color:#fff;
+  font-size:10px; min-width:16px; height:16px; border-radius:9px; display:flex; align-items:center;
+  justify-content:center; padding:0 4px; font-family:var(--mono); }
+
+/* ---------- 主题 / 配色 / 字体 面板 ---------- */
+.popover{ position:absolute; top:calc(var(--topbar-h) + 8px); right:16px; width:280px;
+  background:var(--panel); border:1px solid var(--border); border-radius:12px; box-shadow:var(--shadow);
+  z-index:55; display:none; }
+.popover.show{ display:block; }
+.pop-head{ display:flex; justify-content:space-between; align-items:center; padding:12px 14px;
+  border-bottom:1px solid var(--border); font-weight:600; }
+.pop-close{ cursor:pointer; color:var(--text-3); border:none; background:transparent; font-size:14px; }
+.pop-body{ padding:14px; }
+.pop-row{ display:flex; align-items:center; gap:10px; margin-bottom:14px; font-size:13px; }
+.pop-hint{ font-size:11px; color:var(--text-3); line-height:1.5; }
+.seg{ display:inline-flex; border:1px solid var(--border); border-radius:var(--radius); overflow:hidden; }
+.seg button{ border:none; background:var(--panel-2); padding:6px 12px; cursor:pointer;
+  color:var(--text-2); font-size:12px; font-family:var(--font); }
+.seg button.active{ background:var(--accent); color:#fff; font-weight:600; }
+
+/* ---------- 预警中心抽屉（复用通用抽屉滑动） ---------- */
+.side-drawer{ position:fixed; top:0; right:0; width:400px; max-width:92vw; height:100%;
+  background:var(--panel); border-left:1px solid var(--border);
+  box-shadow:-4px 0 16px rgba(20,30,50,.12); transform:translateX(100%);
+  transition:transform .25s; z-index:41; display:flex; flex-direction:column; }
+.side-drawer.show{ transform:translateX(0); }
+.alert-item{ padding:12px 14px; border-bottom:1px solid var(--border); }
+.alert-item .ai-head{ display:flex; justify-content:space-between; align-items:center; margin-bottom:4px; gap:8px; }
+.alert-item .ai-body{ font-size:12px; color:var(--text-2); line-height:1.5; }
+.alert-item.danger{ border-left:3px solid var(--danger); }
+.alert-item.warn{ border-left:3px solid var(--warn); }
+.alert-item.info{ border-left:3px solid var(--accent); }
+
+/* ---------- 标签栏（当前单页模式隐藏空栏，后续可开启多标签） ---------- */
+.tab-bar{ display:none; }
+
+/* ---------- 移动端适配：手机简易浏览净值与持仓 ---------- */
+@media (max-width:760px){
+  :root{ --sidebar-w:58px; }
+  .nav-item{ justify-content:center; font-size:0; gap:0; padding:12px 0; }
+  .nav-item .nav-ico{ font-size:18px; }
+  .nav-k, .brand-name, .brand-sub, .market-status, .live-dot{ display:none; }
+  .metrics .metric:nth-child(1), .metrics .metric:nth-child(2){ display:none; }
+  .search-box input{ width:108px; }
+  .stock-drawer, .side-drawer{ width:100%; }
+  .topbar{ gap:6px; padding:0 8px; }
+  .layout-switch button{ padding:7px 7px; font-size:11px; }
+}
