@@ -4,9 +4,8 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
 <title>本地量化投资交易工作台</title>
-<!-- 根路径引用，GitHub Pages完美兼容 -->
-<link rel="stylesheet" href="/css/styles.css" />
-<link rel="stylesheet" href="/css/ui2.css" />
+<link rel="stylesheet" href="css/styles.css" />
+<link rel="stylesheet" href="css/ui2.css" />
 </head>
 <body data-layout="pre">
 
@@ -156,32 +155,8 @@
   <!-- 提示 toast -->
   <div class="toast-wrap" id="toastWrap"></div>
 
-  <!-- JS资源统一根路径引用 -->
-  <script src="/js/api.js"></script>
-  <script src="/js/charts.js"></script>
-  <script src="/js/app.js"></script>
-
-  <!-- 新增：JSON加载调试代码（关键！排查解析失败） -->
-  <script>
-  // 标准兼容GitHub Pages读取data.json写法，自带错误捕获
-  async function loadMarketData() {
-    try {
-      // 两种路径任选其一都兼容：./data.json 或者 /data.json
-      const res = await fetch('/data.json');
-      if (!res.ok) {
-        throw new Error(`文件获取失败：状态码${res.status}（大概率路径错误/文件不存在）`);
-      }
-      const data = await res.json();
-      console.log("✅ JSON读取成功，数据：", data);
-      return data;
-    } catch (err) {
-      console.error("❌ JSON解析/加载失败：", err);
-      alert('数据文件加载失败：' + err.message + '\n请检查data.json是否存在、格式是否标准');
-      return null;
-    }
-  }
-  // 页面加载自动执行测试
-  window.addEventListener('DOMContentLoaded', loadMarketData);
-  </script>
+  <script src="js/api.js"></script>
+  <script src="js/charts.js"></script>
+  <script src="js/app.js"></script>
 </body>
 </html>
