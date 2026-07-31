@@ -1,15 +1,15 @@
-/* 本地 API 封装：适配 GitHub Pages 静态网页，无后端时读取本地data.json行情文件 */
+/* 本地 API 封装：所有请求发往同源 127.0.0.1:8765，绝不跨域到云端。*/
 const API = (() => {
   let TOKEN = localStorage.getItem("qb_token") || "";
-  // 静态网页强制离线模式，无法连接后端服务
-  let MODE = "offline";
+  // 在线/离线模式：离线优先。前端一键切换并持久化；服务端也会按其自身开关做最终裁决。
+  let MODE = localStorage.getItem("qb_mode") || "offline";  // 'offline' | 'online'
 
   function setMode(m) {
-    MODE = "offline";
+    MODE = m === "online" ? "online" : "offline";
     localStorage.setItem("qb_mode", MODE);
   }
   function getMode() { return MODE; }
-  function isOffline() { return true; }
+  function isOffline() { return MODE === "offline"; }
 
   function setToken(t) {
     TOKEN = t || "";
@@ -18,148 +18,112 @@ const API = (() => {
   }
   function getToken() { return TOKEN; }
 
-  // 静态网页全局读取根目录data.json行情数据缓存
-  let localStockData = null;
-  // 加载本地data.json行情文件
-  async function loadLocalJsonData() {
-    if (localStockData) return localStockData;
-    try {
-      const res = await fetch("./data.json");
-      if (!res.ok) throw new Error("未找到data.json数据文件");
-      localStockData = await res.json();
-      return localStockData;
-    } catch (err) {
-      console.error("读取本地行情JSON失败：", err);
-      // 兜底空数组，防止解析报错
-      localStockData = [];
-      return [];
-    }
-  }
-
-  // 原有后端请求函数：静态环境直接禁用，全部抛出兼容提示
   async function req(path, opts = {}) {
-    // GitHub Pages纯静态环境，无后端API服务，直接拒绝接口请求
-    throw new Error("线上静态站点不支持后端接口访问，仅可查看本地行情K线数据");
+    const method = opts.method || (opts.body ? "POST" : "GET");
+    const headers = { "Content-Type": "application/json" };
+    if (TOKEN) headers["X-Token"] = TOKEN;
+    let r;
+    try {
+      r = await fetch(path, {
+        method,
+        headers,
+        body: opts.body ? JSON.stringify(opts.body) : undefined,
+      });
+    } catch (e) {
+      if (location.protocol === "file:") {
+        throw new Error("请通过启动脚本打开本程序，不要直接双击 index.html（file:// 方式无法连接本地服务）");
+      }
+      throw new Error("无法连接后端服务：请确认服务已启动（本机运行 start.bat / 服务器已部署），再刷新本页");
+    }
+    if (r.status === 401) {
+      // 登录态失效，清除 token 并提示重新登录
+      setToken("");
+      const ev = new CustomEvent("qb-unauthorized");
+      window.dispatchEvent(ev);
+      throw new Error("登录已失效，请重新登录");
+    }
+    const data = await r.json().catch(() => ({ error: "JSON解析失败" }));
+    if (data && data.error) throw new Error(data.error);
+    return data;
   }
 
   const api = {
     setToken, getToken,
     setMode, getMode, isOffline,
+    getModeServer: () => req("/api/settings/mode"),
+    setModeServer: (off) => req("/api/settings/mode", { body: { offline: !!off } }),
+    // ---- 鉴权 ----
+    authStatus: () => req("/api/auth/status"),
+    login: (pwd) => req("/api/auth/login", { body: { password: pwd } }),
+    logout: () => req("/api/auth/logout", { method: "POST" }),
+    setPassword: (pwd) => req("/api/auth/set_password", { body: { password: pwd } }),
+    // ---- 布局方案 ----
+    layouts: () => req("/api/layout"),
+    saveLayout: (p) => req("/api/layout", { body: p }),
+    getLayout: (id) => req("/api/layout/" + id),
+    delLayout: (id) => req("/api/layout/" + id, { method: "DELETE" }),
+    // ---- 预警事件 ----
+    alerts: (limit, unread) => req("/api/alerts?limit=" + (limit || 100) + "&unread=" + (unread || 0)),
+    markAlertsRead: () => req("/api/alerts/read", { method: "POST" }),
+    // ---- 导出 ----
+    exportPositions: (fmt) => "/api/export/positions?fmt=" + (fmt || "xlsx"),
+    exportBacktests: (fmt) => "/api/export/backtests?fmt=" + (fmt || "xlsx"),
 
-    // 服务端模式接口 静态环境空实现
-    getModeServer: () => Promise.resolve({ offline: true }),
-    setModeServer: () => Promise.resolve({ success: true }),
-
-    // ---- 鉴权登录：本地存储密码，不走后端校验 ----
-    authStatus: () => Promise.resolve({ login: !!TOKEN }),
-    login: (pwd) => {
-      // 密码本地存储校验，无后端
-      const savePwd = localStorage.getItem("qb_pwd") || "";
-      if (savePwd && savePwd !== pwd) throw new Error("密码错误");
-      setToken("local_login");
-      return Promise.resolve({ success: true });
-    },
-    logout: () => {
-      setToken("");
-      return Promise.resolve({ success: true });
-    },
-    setPassword: (pwd) => {
-      localStorage.setItem("qb_pwd", pwd || "");
-      return Promise.resolve({ success: true });
-    },
-
-    // ---- 布局存储：本地LocalStorage持久化 ----
-    layouts: () => Promise.resolve(JSON.parse(localStorage.getItem("qb_layouts") || "[]")),
-    saveLayout: (p) => {
-      let list = JSON.parse(localStorage.getItem("qb_layouts") || "[]");
-      list.push(p);
-      localStorage.setItem("qb_layouts", JSON.stringify(list));
-      return Promise.resolve(p);
-    },
-    getLayout: (id) => {
-      let list = JSON.parse(localStorage.getItem("qb_layouts") || "[]");
-      return Promise.resolve(list.find(item => item.id === id) || null);
-    },
-    delLayout: (id) => {
-      let list = JSON.parse(localStorage.getItem("qb_layouts") || "[]");
-      list = list.filter(item => item.id !== id);
-      localStorage.setItem("qb_layouts", JSON.stringify(list));
-      return Promise.resolve({ success: true });
-    },
-
-    // ---- 预警消息 本地存储 ----
-    alerts: (limit, unread) => Promise.resolve(JSON.parse(localStorage.getItem("qb_alerts") || "[]")),
-    markAlertsRead: () => Promise.resolve({ success: true }),
-
-    // ---- 导出链接仅做展示，静态无法生成文件 ----
-    exportPositions: (fmt) => "#",
-    exportBacktests: (fmt) => "#",
-
-    // ---- 系统状态 ----
-    status: () => Promise.resolve({ running: false, env: "static_pages" }),
-
-    // 账户资产：静态默认模拟空账户数据
-    account: () => Promise.resolve({
-      equity: 100000, totalProfit: 0, maxDrawdown: 0, dayProfit: 0
-    }),
-
-    // 股票列表 & K线：读取data.json本地行情数据（核心修复点）
-    universe: () => loadLocalJsonData(),
-    importFull: () => Promise.resolve({ success: true }),
-    kline: async (code) => {
-      const data = await loadLocalJsonData();
-      // 返回全部日线K线数据
-      return Promise.resolve(data);
-    },
-    quote: () => Promise.resolve([]),
-
-    // 以下回测、持仓、AI、风控、同步等后端专属功能，静态网页全部兜底空返回
-    sync: () => Promise.resolve({}),
-    syncOne: () => Promise.resolve({}),
-    importCsv: () => Promise.resolve({}),
-    clean: () => Promise.resolve({}),
-    backtest: () => Promise.resolve({}),
-    backtestGrid: () => Promise.resolve({}),
-    backtestAsync: () => Promise.resolve({}),
-    backtestJob: () => Promise.resolve({}),
-    backtests: () => Promise.resolve([]),
-    strategies: () => Promise.resolve([]),
-    saveStrategy: () => Promise.resolve({}),
-    delStrategy: () => Promise.resolve({}),
-    getStrategy: () => Promise.resolve({}),
-    positions: () => Promise.resolve([]),
-    savePosition: () => Promise.resolve({}),
-    orders: () => Promise.resolve([]),
-    submitOrder: () => Promise.resolve({}),
-    cancelOrder: () => Promise.resolve({}),
-    vwap: () => Promise.resolve({}),
-    riskRules: () => Promise.resolve([]),
-    addRisk: () => Promise.resolve({}),
-    delRisk: () => Promise.resolve({}),
-    updateRisk: () => Promise.resolve({}),
-    riskEvaluate: () => Promise.resolve({}),
-    riskPanel: () => Promise.resolve({}),
-    watch: () => Promise.resolve([]),
-    addWatch: () => Promise.resolve({}),
-    aiScreen: () => Promise.resolve({}),
-    aiDiagnose: () => Promise.resolve({}),
-    aiGenStrategy: () => Promise.resolve({}),
-    aiGenRisk: () => Promise.resolve({}),
-    aiGenReview: () => Promise.resolve({}),
-    aiGenPlan: () => Promise.resolve({}),
-    backup: () => Promise.resolve({}),
-    createBackup: () => Promise.resolve({}),
-    cost: () => Promise.resolve({}),
-    saveCost: () => Promise.resolve({}),
-    brokerStatus: () => Promise.resolve({}),
-    brokerSync: () => Promise.resolve({}),
-    panelEtf: () => Promise.resolve([]),
-    panelCb: () => Promise.resolve([]),
+    // ---- 原有业务接口 ----
+    status: () => req("/api/status"),
+    // 离线模式默认不走实时行情（live=false），避免受限网络下首屏/轮询挂起；
+    // 在线模式且调用方显式要求 live 时才拉外部报价。
+    account: (live) => req("/api/account" + ((live === false || isOffline()) ? "?live=0" : "")),
+    universe: (q) => req("/api/universe" + (q ? "?q=" + encodeURIComponent(q) : "")),
+    importFull: () => req("/api/universe/import_full", { method: "POST" }),
+    kline: (code, adj) => req("/api/kline?code=" + code + "&adj=" + (adj || "qfq")),
+    quote: (codes) => req("/api/quote?codes=" + codes.join(",")),
+    sync: (payload) => req("/api/sync", { body: payload }),
+    syncOne: (code) => req("/api/sync/one", { body: { code } }),
+    importCsv: (text, adj) => req("/api/import_csv", { body: { text, adj } }),
+    clean: (code) => req("/api/clean?code=" + code),
+    backtest: (spec) => req("/api/backtest", { body: spec }),
+    backtestGrid: (spec) => req("/api/backtest/grid", { body: spec }),
+    backtestAsync: (spec) => req("/api/backtest/async", { body: spec }),
+    backtestJob: (id) => req("/api/backtest/job/" + id),
+    backtests: () => req("/api/backtests"),
+    strategies: () => req("/api/strategies"),
+    saveStrategy: (p) => req("/api/strategies", { body: p }),
+    delStrategy: (id) => req("/api/strategy/" + id, { method: "DELETE" }),
+    getStrategy: (id) => req("/api/strategy/" + id),
+    positions: () => req("/api/positions"),
+    savePosition: (p) => req("/api/positions", { body: p }),
+    orders: (env) => req("/api/orders?env=" + (env || "paper")),
+    submitOrder: (p) => req("/api/orders/submit", { body: p }),
+    cancelOrder: (id) => req("/api/orders/cancel", { body: { order_id: id } }),
+    vwap: (p) => req("/api/orders/vwap", { body: p }),
+    riskRules: () => req("/api/risk/rules"),
+    addRisk: (p) => req("/api/risk/rules", { body: p }),
+    delRisk: (id) => req("/api/risk/rules", { method: "DELETE", body: { id } }),
+    updateRisk: (p) => req("/api/risk/update", { body: p }),
+    riskEvaluate: (win) => req("/api/risk/evaluate", { body: { win_rate: win || 0 } }),
+    riskPanel: () => req("/api/risk/panel"),
+    watch: () => req("/api/watch"),
+    addWatch: (p) => req("/api/watch", { body: p }),
+    aiScreen: (nl) => req("/api/ai/screen", { body: { nl } }),
+    aiDiagnose: (m) => req("/api/ai/diagnose", { body: { metrics: m } }),
+    aiGenStrategy: (p) => req("/api/ai/gen_strategy", { body: { params: p } }),
+    aiGenRisk: (p) => req("/api/ai/gen_risk", { body: { params: p } }),
+    aiGenReview: (m) => req("/api/ai/gen_review", { body: { metrics: m } }),
+    aiGenPlan: (m) => req("/api/ai/gen_plan", { body: { context: m } }),
+    backup: () => req("/api/backup"),
+    createBackup: (tag) => req("/api/backup", { body: { tag } }),
+    cost: () => req("/api/settings/cost"),
+    saveCost: (c) => req("/api/settings/cost", { body: { cost: c } }),
+    brokerStatus: () => req("/api/broker/status"),
+    brokerSync: (env) => req("/api/broker/sync", { body: { env } }),
+    panelEtf: () => req("/api/panel/etf_rotation"),
+    panelCb: () => req("/api/panel/cb_arb"),
   };
   return api;
 })();
 
-/* 通用工具函数 完全保留原样无需修改 */
+/* 通用工具函数 */
 const U = {
   fmt(n, d = 2) {
     if (n == null || isNaN(n)) return "—";
@@ -186,6 +150,7 @@ const U = {
     a.click();
     URL.revokeObjectURL(a.href);
   },
+  // 打印导出 PDF（调用浏览器打印）
   printPDF(title) {
     const w = window.open("", "_blank");
     w.document.write("<html><head><title>" + title + "</title>");
