@@ -1,1 +1,29 @@
-
+name: 量化自动爬虫
+# 周一至周五 北京时间9:30自动爬取（UTC时间1:30执行）
+on:
+  schedule:
+    - cron: '30 1 * * 1-5'
+  workflow_dispatch: # 支持网页手动一键运行爬虫
+jobs:
+  crawl_task:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # 允许机器人修改仓库文件
+    steps:
+      - name: 拉取仓库代码
+        uses: actions/checkout@v4
+      - name: 配置Python3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: 安装爬虫依赖包
+        run: pip install -r requirements.txt
+      - name: 执行量化爬虫脚本
+        run: python daily_spider.py
+      - name: 提交更新后的data.json数据
+        run: |
+          git config --global user.name "量化自动机器人"
+          git config --global user.email "robot@github.com"
+          git add data.json
+          git commit -m "自动更新行情数据 $(date)" || exit 0
+          git push
