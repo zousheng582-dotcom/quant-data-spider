@@ -1,5 +1,3 @@
 requests
 akshare
 pandas
-time
-json
