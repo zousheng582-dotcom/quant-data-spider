@@ -4,7 +4,7 @@ on:
   workflow_dispatch: # 保留手动一键运行
   schedule:
     - cron: '0 0 * * *'
-    workflow_dispatch: # 支持网页手动一键运行爬虫# UTC0点=国内早8点，每日自动执行爬虫# 支持网页手动一键运行爬虫
+  workflow_dispatch: # 支持网页手动一键运行爬虫# UTC0点=国内早8点，每日自动执行爬虫# 支持网页手动一键运行爬虫
 jobs:
   crawl_task:
     runs-on: ubuntu-latest
